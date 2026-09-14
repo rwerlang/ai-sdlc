@@ -159,10 +159,10 @@ Execute
 Guardrails
 - AI-Fabric issue classification (as above) — runs as an Action, and its output is visible in the
   issue for the maintainer to override before authorizing.
-- **`ai-fabric:go` is the trust boundary of the whole pipeline.** Nothing the AI-Fabric does happens
-  before this label is applied. The workflow verifies the actor who applied it has write permission
-  and exits silently otherwise, so issue text from a non-collaborator can never start an agent run.
-  See [Identity, permissions and the trust boundary](#identity-permissions-and-the-trust-boundary).
+- **`ai-fabric:go` is the trust boundary of the whole pipeline** — issue bodies and PR comments are
+  untrusted input, so nothing the AI-Fabric does happens before this label is applied. The workflow
+  verifies the actor who applied it has write permission and exits silently otherwise, so issue text
+  from a non-collaborator can never start an agent run.
 
 Output
 - Issue as a proto-spec
@@ -498,7 +498,7 @@ reason a frozen spec is replaced rather than edited.
   lets a human editing a spec, or an unrelated merge from `main`, retrigger a generation play.
 - **Guard on state.** Every workflow first reads the issue's current labels and Project status, and
   exits without acting if the issue is not in the state that play consumes.
-- **Run as the [GitHub App](#identity-permissions-and-the-trust-boundary)**, never the default
+- **Run as the `app/ai-fabric` GitHub App**, never the default
   `GITHUB_TOKEN` — a `GITHUB_TOKEN` run triggers no further workflows, so the chain would stall
   after the first hop.
 
@@ -530,16 +530,13 @@ job-level and each play keeps its own required check.
 repo-specific. They stay local, and may call a shared reusable workflow for the common shape with
 repo-level inputs.
 
-Versioning is the main benefit: app repos pin `@v1` as a moving major tag, so a fix to the spec
-prompt reaches every repo without touching one of them, and a new major can be canaried on a single
-repo first. Pin by commit SHA instead where supply-chain strictness outweighs that convenience.
-
 #### The shared composite action
 
 The cost of splitting is drift — several workflows, one of which quietly loses the trust check. So
 the repeated mechanics live in `fabric-setup`, used by every play:
 
-1. Mint a short-lived GitHub App installation token.
+1. Mint a short-lived installation token for the `app/ai-fabric` GitHub App, which holds
+   fine-grained repository permissions.
 2. Verify the actor who applied the triggering label has write permission; exit silently otherwise.
 3. Read the issue's current labels and Project status, and apply the idempotency guard above.
 4. Apply the `ai-fabric:<stage>` progress label, with `if: always()` cleanup so a crashed run leaves
@@ -594,17 +591,6 @@ Organizational policy encoded as versioned skills in `.claude/skills/`: security
 conventions, brand rules, UX and accessibility constraints, compliance requirements. Applied by D1
 when writing a spec and by B3 when writing code, so constraints are enforced at design time instead
 of being discovered at code review.
-
-### Identity, permissions and the trust boundary
-
-Issue bodies and PR comments are untrusted input. Anyone who can file an issue can write text that
-an agent with repository write access will read, which makes prompt injection a real attack surface
-rather than a theoretical one. The `ai-fabric:go` gate in
-[P1](#p1-capture-the-intent-of-issues) is what contains it.
-
-**Runtime identity is a GitHub App** (`app/ai-fabric`), with fine-grained repository permissions and
-short-lived installation tokens. The agent runs non-interactively, cannot merge, and cannot approve
-its own PRs. Authorization is carried by a label because a GitHub App cannot be an issue assignee.
 
 ### Evals for the AI-Fabric
 
