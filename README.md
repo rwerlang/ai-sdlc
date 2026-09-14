@@ -219,7 +219,7 @@ Guardrails
   - Review the spec against the intent (issue)
   - Validate a human edit kept the required `spec.md` template
   - Validate front-matter and supersession pointers are consistent
-- GitHub — [standard PR gates](#standard-pr-gates)
+- GitHub — [Standard PR gates](#standard-pr-gates)
 
 Output
 - PR approved
