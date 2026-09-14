@@ -504,15 +504,13 @@ reason a frozen spec is replaced rather than edited.
 
 ### Workflow layout
 
-The AI-Fabric is **centralized in an org-level repo** and consumed by every app repo. Setting up a
-new repo means copying three small files.
+The AI-Fabric is **centralized in an org-level repo** and consumed by every app repo.
 
 `<org>/ai-fabric` holds all the real logic — one reusable workflow per play (`on: workflow_call`)
 plus the shared `fabric-setup` composite action. Nothing in it is repo-specific.
 
-Each app repo carries **three thin caller workflows**, identical across repos. They are grouped by
-trigger rather than by play, because a workflow's `on:` block must be declared in the repo where the
-event happens — that is the only reason a local file has to exist at all:
+Each app repo carries **three thin caller workflows**, grouped by trigger rather than by play,
+because a workflow's `on:` block must be declared in the repo where the event happens:
 
 | Caller workflow | Trigger | Fans out to |
 | --- | --- | --- |
@@ -520,11 +518,9 @@ event happens — that is the only reason a local file has to exist at all:
 | `fabric-pr.yml` | `pull_request` (opened, synchronize, closed) | D2/B2/B4 reviews, B1 plan, B3 code, evals |
 | `fabric-pipeline.yml` | `push` to `main`, `schedule` | T1 CI, T3 nightly regression |
 
-Each is roughly ten lines: a guard and a
-`uses: <org>/ai-fabric/.github/workflows/<play>.yml@v1`.
-
-The caller fans out to **one job per play**, so `permissions:`, `concurrency:` and check names stay
-job-level and each play keeps its own required check.
+Each caller job is a guard plus `uses: <org>/ai-fabric/.github/workflows/<play>.yml@v1`, **one job
+per play**, so `permissions:`, `concurrency:` and check names stay job-level and each play keeps its
+own required check.
 
 **Do not centralize `ci.yml` and `pr-build.yml`.** Build, package and deploy commands are genuinely
 repo-specific. They stay local, and may call a shared reusable workflow for the common shape with
@@ -532,8 +528,7 @@ repo-level inputs.
 
 #### The shared composite action
 
-The cost of splitting is drift — several workflows, one of which quietly loses the trust check. So
-the repeated mechanics live in `fabric-setup`, used by every play:
+The mechanics every play repeats live in `fabric-setup`:
 
 1. Mint a short-lived installation token for the `app/ai-fabric` GitHub App, which holds
    fine-grained repository permissions.
@@ -542,9 +537,8 @@ the repeated mechanics live in `fabric-setup`, used by every play:
 4. Apply the `ai-fabric:<stage>` progress label, with `if: always()` cleanup so a crashed run leaves
    nothing orphaned.
 
-A `workflow_call` reusable workflow for "run the agent with this prompt, then open a PR" removes the
-rest. The security-critical logic then exists once, and
-[the eval suite](#evals-for-the-ai-fabric) has a single unit to gate.
+A second shared `workflow_call` workflow — "run the agent with this prompt, then open a PR" — covers
+the rest.
 
 ### Failure handling and escalation
 
