@@ -23,10 +23,10 @@ AI should automate as much as possible. Humans are in the loop to orchestrate, o
 ## High-level Process
 
 The playbook is built from plays grouped into six non-linear stages — Plan, Design, Build, Test,
-Deploy, Maintain — which together cover the complete lifecycle.
+Deploy, Maintain.
 
 > **Scope note:** stages 0 through 4 (Backlog, Plan, Design, Build, Test) are specified below.
-> **Deploy and Maintain are named but not yet written** and will be added in a later revision.
+> **Deploy and Maintain are named but not yet written.**
 
 An issue travels the pipeline in one of two **tracks**, decided in P1:
 
@@ -103,11 +103,11 @@ with `ai-fabric:blocked`. Filter the board on that label to see everything waiti
 
 ### Github issue types
 
-Only Github built-in types. No additional setup required.
+Only Github built-in types.
 
 - **Feature**: Describes an intent, idea or the problem to solve.
 - **Bug**: Describes an error that must be fixed.
-- **Task**: A task is a work item for a human to handle. Example: Create a new UI design using Claude Design.
+- **Task**: Work item for a human to handle. Example: create a new UI design using Claude Design.
 
 ## The Plays
 
@@ -124,11 +124,11 @@ Input
   - Project status: Backlog
 
 Execute
-- A human manually moves issues from the backlog to plan (`Status:Plan`) start working on a new set of issues.
+- A human manually moves issues from the backlog to plan (`Status:Plan`) to start working on a new set of issues.
 - Backlog planning and prioritization happens during this stage.
 
 Guardrails
-- None. Nothing has been authorized yet; BG1 produces no artifact and triggers no agent.
+- None. Nothing is authorized before P1.
 
 Output
 - List of issues without details
@@ -146,15 +146,11 @@ Input
   - Project status: Plan
 
 Execute
-- A human creates a new issue or picks one from the backlog to describe the problem to solve, in their own words.
+- A human describes the problem to solve, in their own words.
 - Brainstorm with `@claude`, which writes the changes to the issue with a specific proto-spec template.
 - One issue may result in multiple sub-issues if needed. Claude creates the new sub-issues when asked.
-- **Track classification.** The AI-Fabric classifies the issue and proposes a track:
-  - **Express** — typo, copy change, or small bug. Spec and plan stay in the issue body; the
-    AI-Fabric goes straight to writing the code and tests, and ships them in a single PR.
-  - **Standard** — everything else. Three artifacts, each written by the AI-Fabric and merged
-    through its own human-approved PR: first the spec, then the implementation plan, then the code
-    and tests.
+- **Track classification.** The AI-Fabric proposes a track (see
+  [High-level Process](#high-level-process)):
   - Express requires *all* of: no schema change, no new dependency, no change to an authentication,
     authorization or other security surface, no public API change, no UI design work, and a single
     component affected. Anything else is Standard.
@@ -206,8 +202,7 @@ Execute
     - Labels: - ai-fabric:spec, + ai-fabric:awaiting-approval
 
 Guardrails
-- Validate `spec.md` against the required template at generation time, not only at review — a
-  malformed spec should never reach a human.
+- Validate `spec.md` against the required template at generation time, not only at review.
 - Validate the spec states testable acceptance criteria. B3 generates one Playwright test per
   criterion, so a criterion that cannot be asserted is a defect here.
 - Attempt budget and escalation per [Failure handling](#failure-handling-and-escalation).
@@ -229,14 +224,9 @@ Execute
 Guardrails
 - AI-Fabric GitHub Action
   - Review the spec against the intent (issue)
-  - Validate `spec.md` has a valid template to guarantee that a human edit kept the required template
+  - Validate a human edit kept the required `spec.md` template
   - Validate front-matter and supersession pointers are consistent
-- GitHub
-  - All comments must be resolved
-  - Branch protection rules
-  - Minimum approvals
-  - CODEOWNERS approval
-  - Author cannot approve
+- GitHub — [standard PR gates](#standard-pr-gates)
 
 Note: the AI reviewing this PR is the same model family that wrote the spec. It reliably catches
 mechanical divergence from the template and from the stated intent; it does not catch judgment
@@ -299,15 +289,10 @@ Execute
 Guardrails
 - AI-Fabric GitHub Action
   - Review the plan against the spec
-  - Validate `plan.md` has a valid template to guarantee that a human edit kept the required template
+  - Validate a human edit kept the required `plan.md` template
   - Validate that it knows the build, lint, and test commands for the next step — in practice, that
     [`CLAUDE.md`](#claudemd) is present and current
-- GitHub
-  - All comments must be resolved
-  - Branch protection rules
-  - Minimum approvals
-  - CODEOWNERS approval
-  - Author cannot approve
+- GitHub — [standard PR gates](#standard-pr-gates)
 
 The same caveat as D2 applies: AI review here catches mechanical divergence, not judgment errors.
 
@@ -343,11 +328,9 @@ Execute
     - Labels: - ai-fabric:build, + ai-fabric:awaiting-approval
 
 Guardrails
-- AI Build pass
-- AI Security validations pass
-- AI Unit tests pass
+- Build, security validations and unit tests pass
 - Playwright tests parse and compile, and every `data-testid` they reference exists in the diff —
-  a static check, no environment required (see the sequencing caveat below)
+  a static check, no environment required
 - Every auto-fix loop is bounded — 3 attempts per gate, then escalate per
   [Failure handling](#failure-handling-and-escalation).
 
@@ -366,12 +349,7 @@ included, producing a test that can never fail.
 reviews Playwright tests that have never run, and B3's "tests pass" guardrail covers unit tests
 only. A broken selector reaches `main` and is only discovered after merge.
 
-What B3 does about it today is a **static check, no environment**: the Playwright tests must parse
-and compile, and every `data-testid` they reference must exist in the diff. That costs nothing and
-catches the most common generation failure.
-
-Actually *running* them before merge is a candidate for a later revision, and it is not as cheap as
-it sounds:
+Running them before merge is a candidate for a later revision, and it is not as cheap as it sounds:
 
 - **Run it in the pipeline runner, not a cloud preview environment.** Docker Compose or Actions
   `services:` gives a real Postgres with migrations and seed data, torn down with the job, at the
@@ -405,12 +383,7 @@ Guardrails
   - Build code
   - Run linter to validate warnings
   - Run unit tests and collect code coverage
-- GitHub
-  - All comments must be resolved
-  - Branch protection rules
-  - Minimum approvals
-  - CODEOWNERS approval
-  - Author cannot approve
+- GitHub — [standard PR gates](#standard-pr-gates), plus:
   - PR minimum code coverage validation
   - CodeQL scan
   - SAST scan
@@ -533,7 +506,17 @@ Not yet specified.
 
 ## Reference
 
-Everything below is detail the plays refer to. It is not needed to understand the process.
+Everything below is detail the plays refer to.
+
+### Standard PR gates
+
+Enforced by GitHub on every AI-Fabric PR:
+
+- All comments must be resolved
+- Branch protection rules
+- Minimum approvals
+- CODEOWNERS approval
+- Author cannot approve
 
 ### Labels and Project status
 
@@ -552,9 +535,6 @@ Also persists until cleared. It is **orthogonal to Project status, and never cha
 that escalates out of B3 keeps status `Build`, because the whole point of the flag is to show *where*
 the work stopped. A `Blocked` column would erase exactly the information the flag exists to carry,
 and would make "how long did this sit in Build" unanswerable.
-
-`ai-fabric:awaiting-approval` and `ai-fabric:blocked` are the only labels that survive the end of a
-run.
 
 **Project status — the coarse stage.** What Kanban column the issue sits in. It only ever moves when
 the work genuinely moves to a different stage — forwards on success, backwards on a rejection.
@@ -586,10 +566,9 @@ supersedes: [123]
 status: active   # active | superseded
 ```
 
-**A spec is amendable until code exists for it, and frozen afterwards.** If plan review (B2) exposes
-a defect in the spec, it is corrected in place — that is normal and healthy, and it is the reason
-plan review happens before code generation. Once B3 has produced code against a spec, the spec is
-frozen.
+**A spec is amendable until B3 has produced code against it, and frozen afterwards.** If plan
+review (B2) exposes a defect in the spec, it is corrected in place — which is the reason plan review
+happens before code generation.
 
 **Changing a frozen spec means writing a new one.** A later change to the same feature gets its own
 `/specs/<new-issue-number>/` directory listing the issues it `supersedes`. The single permitted
@@ -618,7 +597,7 @@ file. A path filter would let a human editing a spec, or an unrelated merge from
 generation play.
 
 Every AI-Fabric workflow starts by reading the issue's current label and status, and exits without
-acting if the issue is not in the state that play consumes. Re-running a workflow must be safe.
+acting if the issue is not in the state that play consumes.
 
 **A run authenticated with the default `GITHUB_TOKEN` does not trigger further workflows.** The
 whole pipeline depends on one play's merge starting the next, so it would silently stall after the
@@ -627,28 +606,58 @@ for the process, not only for audit and licensing.
 
 ### Workflow layout
 
-**One workflow per play**, each thin: its trigger, its label guard, its prompt, its `permissions:`
-block. Shared mechanics live in a composite action, not in a single monolithic workflow.
+The AI-Fabric is **centralized in an org-level repo** and consumed by every app repo. Setting up a
+new repo means copying three small files.
 
-A single workflow guarded by `if` conditions was considered and rejected:
+`<org>/ai-fabric` holds all the real logic — one reusable workflow per play (`on: workflow_call`)
+plus the shared `fabric-setup` composite action. Nothing in it is repo-specific.
 
-- **`permissions:` is scoped per job, never per step.** A monolith must grant the union of every
-  play's scopes to whatever job is running, so the B4 review run would carry the same write scopes
-  as code generation. `if` guards control execution, not the token, so this is not fixable with
-  conditionals. It contradicts
-  [Identity, permissions and the trust boundary](#identity-permissions-and-the-trust-boundary)
-  directly.
-- **Triggers are per workflow.** A monolith must declare the union — `issues.labeled`,
-  `pull_request.closed`, `pull_request.opened`, `push`, `schedule` — so every one of those events
-  starts it and most runs immediately no-op. The Actions run list stops answering "did D1 work?"
-- **Concurrency is per workflow.** T1 needs a concurrency group to sequence deployments; in a
-  monolith that same group would serialize spec generation for unrelated issues.
-- **Branch protection keys off check names.** A monolith emits one check name for everything, so a
-  spec PR cannot require the spec-template validation specifically.
-- **Blast radius.** A change to one play risks every play.
+Each app repo carries **three thin caller workflows**, identical across repos. They are grouped by
+trigger rather than by play, because a workflow's `on:` block must be declared in the repo where the
+event happens — that is the only reason a local file has to exist at all:
 
-The cost of splitting is drift — eight workflows, one of which quietly loses the trust check. So the
-repeated mechanics belong in a composite action (`.github/actions/fabric-setup`) used by every play:
+| Caller workflow | Trigger | Fans out to |
+| --- | --- | --- |
+| `fabric-issues.yml` | `issues` (opened, edited, labeled, closed) | P1 classify, D1 spec, unblock |
+| `fabric-pr.yml` | `pull_request` (opened, synchronize, closed) | D2/B2/B4 reviews, B1 plan, B3 code, evals |
+| `fabric-pipeline.yml` | `push` to `main`, `schedule` | T1 CI, T3 nightly regression |
+
+Each is roughly ten lines: a guard and a
+`uses: <org>/ai-fabric/.github/workflows/<play>.yml@v1`.
+
+**This is not the monolith rejected below**, because the caller fans out to **one job per play**,
+and `permissions:`, `concurrency:` and check names are all job-level. Least privilege survives, each
+play keeps a distinct required check (rendered as `fabric-pr / B3 · generate code`), and a play whose
+guard does not match shows as skipped rather than as a pass. The only cost is that one event starts
+one run containing several skipped jobs.
+
+**Do not centralize `ci.yml` and `pr-build.yml`.** Build, package and deploy commands are genuinely
+repo-specific. They stay local, and may call a shared reusable workflow for the common shape with
+repo-level inputs.
+
+Versioning is the main benefit: app repos pin `@v1` as a moving major tag, so a fix to the spec
+prompt reaches every repo without touching one of them, and a new major can be canaried on a single
+repo first. Pin by commit SHA instead where supply-chain strictness outweighs that convenience.
+
+#### Why not one workflow guarded by `if`
+
+Collapsing the plays into a single workflow was considered and rejected. The same reasoning is what
+makes the per-play *job* split above load-bearing:
+
+- **`permissions:` is scoped per job, never per step.** A monolithic job must grant the union of
+  every play's scopes, so a review run would carry the same write scopes as code generation. `if`
+  guards control execution, not the token, so this is not fixable with conditionals. It contradicts
+  [Identity, permissions and the trust boundary](#identity-permissions-and-the-trust-boundary).
+- **Branch protection keys off check names.** One job for everything emits one check name, so a spec
+  PR could not require the spec-template validation specifically.
+- **Concurrency.** T1 needs a concurrency group to sequence deployments; shared with everything else
+  it would serialize spec generation for unrelated issues.
+- **Blast radius.** A change to one play would risk every play.
+
+#### The shared composite action
+
+The cost of splitting is drift — several workflows, one of which quietly loses the trust check. So
+the repeated mechanics live in `fabric-setup`, used by every play:
 
 1. Mint a short-lived GitHub App installation token.
 2. Verify the actor who applied the triggering label has write permission; exit silently otherwise.
@@ -657,15 +666,12 @@ repeated mechanics belong in a composite action (`.github/actions/fabric-setup`)
    nothing orphaned.
 
 A `workflow_call` reusable workflow for "run the agent with this prompt, then open a PR" removes the
-rest. This keeps least privilege and isolation per play while the security-critical logic exists
-once — and gives [the eval suite](#evals-for-the-ai-fabric) a single unit to gate.
-
-Note that D1→B1 and B1→B3 both listen to `pull_request.closed`; they are two workflows on the same
-event, separated by a one-line label guard. That is the intended shape, not duplication.
+rest. The security-critical logic then exists once, and
+[the eval suite](#evals-for-the-ai-fabric) has a single unit to gate.
 
 ### Failure handling and escalation
 
-Every generation play is bounded. No auto-fix loop runs unsupervised.
+Every generation play is bounded.
 
 - **Attempt budget:** each auto-fix gate in B3 (lint, security, build, unit tests) gets at most
   3 attempts. The job also carries a wall-clock cap and a token budget.
@@ -737,9 +743,9 @@ reviewer, several plays downstream.
 
 ### Why every guardrail is a GitHub Action
 
-The agent harness's local hook mechanism is deliberately *not* used, and the tradeoff is worth
-stating plainly: hooks are *preventive* — they block an agent action
-mid-flight — while Actions are *detective*, catching a violation after the agent has already acted.
+The agent harness's local hook mechanism is deliberately *not* used. Hooks are *preventive* — they
+block an agent action mid-flight — while Actions are *detective*, catching a violation after the
+agent has already acted.
 That is acceptable here for one specific reason: the agent only ever runs inside an Action, never on
 a developer machine, and it has no ability to merge. Branch protection plus required status checks
 are the actual enforcement point, so a check that runs after the agent acts but before anything
