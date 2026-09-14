@@ -182,7 +182,7 @@ Execute
     - Project status: Design
   - Create a new branch from `main`
   - Write a new `/specs/<issue-number>/spec.md` based on the issue, applying the organizational
-    [skills](#skills) — security, compliance, brand, UX, accessibility
+    skills — security, compliance, brand, UX, accessibility
   - Set the spec front-matter (`issue`, `supersedes`, `status: active`), and if it supersedes an
     existing spec, flip that spec's `status` to `superseded` and record its `superseded-by` in the
     same PR — see [Spec and plan lifecycle](#spec-and-plan-lifecycle)
@@ -274,7 +274,7 @@ Guardrails
   - Review the plan against the spec
   - Validate a human edit kept the required `plan.md` template
   - Validate that it knows the build, lint, and test commands for the next step — in practice, that
-    [`CLAUDE.md`](#claudemd) is present and current
+    `CLAUDE.md` is present and current
 - GitHub — [standard PR gates](#standard-pr-gates)
 
 Output
@@ -294,8 +294,7 @@ Execute
     - Labels: - ai-fabric:awaiting-approval (Standard) | - ai-fabric:go (Express), + ai-fabric:build
     - Project status: Build
   - Create a new branch from `main`
-  - Generate code using agents and skills, guided by [`CLAUDE.md`](#claudemd) and the organizational
-    [skills](#skills)
+  - Generate code using agents and skills, guided by `CLAUDE.md` and the organizational skills
   - Run lint, auto-fix
   - Run security validations and auto-fix
   - Build the code and auto-fix
@@ -568,23 +567,6 @@ Blocked on human work:
   gets `ai-fabric:blocked-on-design`. The parent keeps status `Design`, where the work actually is.
   B1 does not trigger while that label is present. Closing the Task fires a workflow that clears the
   label and resumes the chain. This is a real dependency, not just a linked issue.
-
-### `CLAUDE.md`
-
-A single version-controlled file holding what every agent session needs to know:
-
-- Build, lint, test and run commands (B2 validates these are present and current).
-- Architecture, directory layout, and the conventions the code must follow.
-- Recurring mistakes the agent should not repeat.
-- **The selector convention** — components expose `data-testid`, and Playwright tests select on it
-  only. B3 depends on this to generate stable tests; without it the nightly suite becomes noise.
-
-### Skills
-
-Organizational policy encoded as versioned skills in `.claude/skills/`: security standards, API
-conventions, brand rules, UX and accessibility constraints, compliance requirements. Applied by D1
-when writing a spec and by B3 when writing code, so constraints are enforced at design time instead
-of being discovered at code review.
 
 ### Evals for the AI-Fabric
 
