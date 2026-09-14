@@ -99,7 +99,7 @@ current iteration by status. An issue sitting in a column means:
 
 There is deliberately **no Blocked column** — an issue that stops keeps its column and is flagged
 with `ai-fabric:blocked`. Filter the board on that label to see everything waiting on a human. See
-[Labels and Project status](#labels-and-project-status).
+[Failure handling and escalation](#failure-handling-and-escalation).
 
 ### Github issue types
 
@@ -474,29 +474,6 @@ Enforced by a required status check on every AI-Fabric PR:
 - **Frozen-spec check.** A PR that modifies a frozen `spec.md` fails, unless its only change to that
   file is the supersession pointer (`status`, `superseded-by`). See
   [Spec and plan lifecycle](#spec-and-plan-lifecycle).
-
-### Labels and Project status
-
-Three layers track an issue, and they answer different questions.
-
-**`ai-fabric:<stage>` — progress indicator. "An agent is working on this right now."**
-Added at the start of an Action run and removed at the end of the *same* run. Long-running steps
-like code generation are exactly why this exists: it tells a human which step an issue is currently
-in. A cleanup step with `if: always()` removes it, so a crashed or cancelled run never orphans one.
-
-**`ai-fabric:awaiting-approval` — queue state. "This is waiting on a human."**
-Persists across runs until the human acts.
-
-**`ai-fabric:blocked` — exception flag. "This stopped and needs a human."**
-Also persists until cleared. It is **orthogonal to Project status, and never changes it** — an
-issue that escalates out of B3 keeps status `Build`, because the flag exists to show *where* the
-work stopped.
-
-**Project status — the coarse stage.** What Kanban column the issue sits in. It only ever moves when
-the work genuinely moves to a different stage — forwards on success, backwards on a rejection.
-
-Each play states the labels it adds and removes; `ai-fabric:awaiting-approval` is cleared by the
-play that consumes the merge.
 
 ### Spec and plan lifecycle
 
