@@ -429,22 +429,74 @@ The issue is **not** closed here. It closes at release, in the not-yet-specified
 
 Input:
 - Scheduled nightly trigger (cron)
-- All existing playwright tests
+- All existing playwright tests, **unchanged**
 
 Execute:
 - CI pipeline action
   - Run all existing playwright tests against the latest deployed environment
   - Save test results as pipeline artifacts
   - AI-Fabric
-    - Validate test results and create new Bug issues as sub-issues for failed tests
+    - Triage failures (see the assertion rule in T1)
+    - Create a Bug sub-issue for each failure, unless an open Bug already names the same test id
+    - Open a single PR for any locator, wait or fixture repairs
   - Fail the stage when tests fail
 
 Guardrails:
+- **The suite is frozen at run time.** T3 never generates or edits tests before running them. A
+  nightly that rewrites its own suite cannot tell a regression from a test that was never going to
+  pass, and an agent holding write access to the assertions it is graded on will loosen them to
+  reach green. Coverage gaps are T4's job, on a different cadence and with no write access to code.
 - The assertion rule from T1 applies here too: locator repairs are allowed, assertion changes are not.
+- **Repairs never reach `main` unreviewed.** The repair PR goes through B4 and the
+  [standard PR gates](#standard-pr-gates) like any other code change. The nightly job has no direct
+  write access to `main`.
+- **One open Bug per failing test.** A failure that persists for a week must not file seven issues —
+  triage matches on test id against open `ai-fabric:nightly` Bugs and comments on the existing one.
 
 Output:
 - Test results
-- New Bug issues for failures found
+- New Bug issues for failures not already tracked
+- Optionally, a PR with locator, wait or fixture repairs
+
+#### T4. E2E coverage audit
+
+Per-issue coverage is already gated in B4 and T1, and both are scoped to a single issue. This play
+catches what neither can see: drift across the suite as a whole.
+
+Input:
+- Scheduled weekly trigger (cron)
+- All `status: active` specs
+- The full Playwright suite
+
+Execute:
+- AI-Fabric GitHub Action
+  - Diff every acceptance criterion of every active spec against the suite, and classify:
+    - **Gaps** — a criterion with no test
+    - **Silent tests** — a test that exists for a criterion but no longer asserts it, is skipped, or
+      was removed by an unrelated refactor
+    - **Supersession orphans** — tests written for the criteria of a `status: superseded` spec,
+      still asserting behaviour the product deliberately abandoned. Left in place, T3 faithfully
+      raises Bugs for correct new behaviour failing an obsolete test
+  - Save the full audit as a pipeline artifact
+  - Create one sub-issue per finding on the spec's originating issue, skipping findings that already
+    have an open sub-issue:
+    - Gap or silent test -> Bug, `Status: Backlog`
+    - Orphan -> Task, `Status: Backlog`
+
+Guardrails:
+- **Issues only, never diffs.** T4 writes no test code. Each finding re-enters the chain as an
+  ordinary issue: a human authorizes it with `ai-fabric:go`, B3 writes the test, B4 reviews it, and
+  T1 executes it once against a deployed app before it can ever gate a nightly.
+- **Findings land in `Backlog`**, so nothing the audit produces starts an agent run on its own and
+  the `ai-fabric:go` trust boundary holds.
+- Scope is `status: active` specs per [Spec and plan lifecycle](#spec-and-plan-lifecycle) — not
+  "recent" specs, which is an arbitrary window, and superseded specs only to find their orphans.
+- The audit reports; it does not judge whether a gap is worth closing. A maintainer triaging the
+  Backlog makes that call.
+
+Output:
+- Coverage audit report as a pipeline artifact
+- New Bug and Task sub-issues for gaps, silent tests and orphans
 
 ### 5 - Deploy
 
@@ -515,7 +567,7 @@ because a workflow's `on:` block must be declared in the repo where the event ha
 | --- | --- | --- |
 | `fabric-issues.yml` | `issues` (opened, edited, labeled, closed) | P1 classify, D1 spec, unblock |
 | `fabric-pr.yml` | `pull_request` (opened, synchronize, closed) | D2/B2/B4 reviews, B1 plan, B3 code, evals |
-| `fabric-pipeline.yml` | `push` to `main`, `schedule` | T1 CI, T3 nightly regression |
+| `fabric-pipeline.yml` | `push` to `main`, `schedule` | T1 CI, T3 nightly regression, T4 coverage audit |
 
 Each caller job is a guard plus `uses: <org>/ai-fabric/.github/workflows/<play>.yml@v1`, **one job
 per play**, so `permissions:`, `concurrency:` and check names stay job-level and each play keeps its
