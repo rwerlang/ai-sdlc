@@ -471,14 +471,14 @@ Enforced by GitHub on every AI-Fabric PR:
 
 Enforced by a required status check on every AI-Fabric PR:
 
-- **Frozen-spec check.** A PR that modifies a frozen `spec.md` fails, unless its only change to that
-  file is the supersession pointer (`status`, `superseded-by`). See
-  [Spec and plan lifecycle](#spec-and-plan-lifecycle).
+- **Frozen-spec check.** A spec is frozen once the PR labelled `ai-fabric:plan` merges. A PR that
+  modifies a frozen `spec.md` fails, unless its only change to that file is the supersession pointer
+  (`status`, `superseded-by`). See [Spec and plan lifecycle](#spec-and-plan-lifecycle).
 
 ### Spec and plan lifecycle
 
 Specs and plans live at `/specs/<issue-number>/spec.md` and `/specs/<issue-number>/plan.md`. They
-are **permanent**.
+are **permanent** — never edited once frozen, superseded instead.
 
 Each spec carries front-matter:
 
@@ -489,26 +489,8 @@ superseded-by: null
 status: active   # active | superseded
 ```
 
-**A spec is amendable until the PR labelled `ai-fabric:plan` merges, and frozen from that merge
-onwards.** That merge is what triggers B3, so it is the last moment before code exists — and the
-reason plan review happens before code generation. If B2 exposes a defect in the spec, it is
-corrected in place, in that PR.
-
-**Changing a frozen spec means writing a new one**, in its own `/specs/<new-issue-number>/`
-directory, listing the issues it `supersedes`. The single permitted mutation to a frozen spec is its
-pointer — flipping `status` to `superseded` and recording `superseded-by` — performed by D1 in the
-same PR. Enforced by the frozen-spec check in [standard PR gates](#standard-pr-gates).
-
-**Only `status: active` specs are loaded as agent context.** That is what the supersession pointer
-buys: without it, a feature touched thirty times over a year would present the fabric with thirty
-overlapping, partly-contradictory specs. `/specs/README.md` is a generated index of active specs,
-rewritten by D1 in the same PR.
-
-**The issue that originated a superseded spec stays closed.** Reopening a shipped issue corrupts the
-project's cycle-time and throughput data. The new issue links back (`Relates to #123`) and the new
-spec's `supersedes:` carries the relationship. Reopen in exactly one case: the work was never
-actually delivered — closed in error, or a regression caught before release. A defect found after
-release is always a new Bug issue.
+**Only `status: active` specs are loaded as agent context.** That is what supersession buys, and the
+reason a frozen spec is replaced rather than edited.
 
 ### Triggers and idempotency
 
