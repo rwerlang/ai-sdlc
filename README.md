@@ -494,17 +494,13 @@ reason a frozen spec is replaced rather than edited.
 
 ### Triggers and idempotency
 
-Plays are triggered by **the merge of a PR carrying a specific label**, never by a path filter on a
-file. A path filter would let a human editing a spec, or an unrelated merge from `main`, retrigger a
-generation play.
-
-Every AI-Fabric workflow starts by reading the issue's current label and status, and exits without
-acting if the issue is not in the state that play consumes.
-
-**A run authenticated with the default `GITHUB_TOKEN` does not trigger further workflows.** The
-whole pipeline depends on one play's merge starting the next, so it would silently stall after the
-first hop. Running as the [GitHub App](#identity-permissions-and-the-trust-boundary) is what makes
-the chain work.
+- **Trigger on the merge of a PR carrying a specific label**, never a path filter — a path filter
+  lets a human editing a spec, or an unrelated merge from `main`, retrigger a generation play.
+- **Guard on state.** Every workflow first reads the issue's current labels and Project status, and
+  exits without acting if the issue is not in the state that play consumes.
+- **Run as the [GitHub App](#identity-permissions-and-the-trust-boundary)**, never the default
+  `GITHUB_TOKEN` — a `GITHUB_TOKEN` run triggers no further workflows, so the chain would stall
+  after the first hop.
 
 ### Workflow layout
 
