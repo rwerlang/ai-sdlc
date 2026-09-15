@@ -77,6 +77,9 @@ code consistent.
   gate and run link — and leave Project status unchanged.
 - **Guardrails are GitHub Actions, never agent hooks** — nothing depends on what an individual runs
   on their laptop.
+- **E2E is a repo capability, not a fixed part of the chain.** Not every repo has a UI, so the
+  `e2e` caller input (default `false`) turns Playwright generation, the T1 smoke stage and the T3
+  nightly on or off. Make the runner conditional, never the coverage gate.
 - **The assertion rule (T1, T3).** An agent may repair Playwright locators, waits and fixtures; it
   may never weaken, relax, skip or delete an assertion that traces to an acceptance criterion.
 - **T3 never edits the suite it runs**, and **T4 writes issues, never diffs** — an agent with write

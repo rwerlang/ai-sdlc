@@ -27,6 +27,8 @@ final word by approving the work.
   committed and approved before the next stage starts.
 - **Every guardrail is a GitHub Action**, never an agent hook. Nothing depends on what an
   individual runs on their laptop.
+- **Every acceptance criterion traces to at least one automated test.** Which runner proves it
+  depends on the repo — see [E2E tests are optional](#e2e-tests-are-optional).
 - **The AI-Fabric never approves or merges its own work.**
 
 ## High-level Process
@@ -75,7 +77,7 @@ stateDiagram-v2
 
     state Test {
         [*] --> T1_ci
-        T1_ci: T1 - CI, deploy, Playwright
+        T1_ci: T1 - CI, deploy, tests
         T1_ci --> T2_uat
         T2_uat: T2 - human exploratory testing
         T2_uat --> [*]
@@ -206,8 +208,9 @@ Execute
 
 Guardrails
 - Validate `spec.md` against the required template at generation time, not only at review.
-- Validate the spec states testable acceptance criteria. B3 generates one Playwright test per
-  criterion, so a criterion that cannot be asserted is a defect here.
+- Validate the spec states testable acceptance criteria. B3 generates at least one automated test
+  per criterion — a Playwright test where the repo runs [E2E](#e2e-tests-are-optional), a unit or
+  integration test otherwise — so a criterion that cannot be asserted is a defect here.
 - Attempt budget and escalation per [Failure handling](#failure-handling-and-escalation).
 
 Output
@@ -309,8 +312,10 @@ Execute
   - Build the code and auto-fix
   - Generate unit tests
   - Run unit tests and auto-fix
-  - **Generate Playwright tests** — one test per acceptance criterion in `spec.md`, selecting on the
-    `data-testid` convention from `CLAUDE.md`
+  - **Cover every acceptance criterion in `spec.md` with at least one automated test.** Where the
+    repo runs [E2E](#e2e-tests-are-optional), that is one Playwright test per criterion, selecting
+    on the `data-testid` convention from `CLAUDE.md`. A criterion with no UI surface — and every
+    criterion in a repo with `e2e: false` — is covered by a unit or integration test instead
   - Create a new PR -> automatically included in the AI-Fabric project
   - Link the PR to the issue
   - Issue:
@@ -318,22 +323,24 @@ Execute
 
 Guardrails
 - Build, security validations and unit tests pass
-- Playwright tests parse and compile, and every `data-testid` they reference exists in the diff —
-  a static check, no environment required
+- Every acceptance criterion in `spec.md` maps to at least one test in the diff
+- Where E2E is enabled: Playwright tests parse and compile, and every `data-testid` they reference
+  exists in the diff — a static check, no environment required
 - Every auto-fix loop is bounded — 3 attempts per gate, then escalate per
   [Failure handling](#failure-handling-and-escalation).
 
 Output
-- PR containing code changes, unit tests, and Playwright tests
+- PR containing code changes, unit tests, and — where E2E is enabled — Playwright tests
 
-**Sequencing caveat:** these tests first *execute* in T1, against the deployed app. B4 therefore
-reviews Playwright tests that have never run, and B3's "tests pass" guardrail covers unit tests
-only. A broken selector reaches `main` and is only discovered after merge.
+**Sequencing caveat, E2E repos only:** Playwright tests first *execute* in T1, against the deployed
+app. B4 therefore reviews Playwright tests that have never run, and B3's "tests pass" guardrail
+covers unit tests only. A broken selector reaches `main` and is only discovered after merge. A repo
+with `e2e: false` does not have this gap — every test it generates runs before B4 reviews it.
 
 #### B4. Code review
 
 Input
-- PR containing code changes, unit tests, and Playwright tests
+- PR containing code changes, unit tests, and — where E2E is enabled — Playwright tests
 
 Execute
 - A human reviews the PR — the behaviour and the tests that prove it, together
@@ -352,20 +359,23 @@ Guardrails
   - Dependency scan
 - AI-Fabric GitHub Action (adds `ai-fabric:code-review` at the start of its run, removes it at the end)
   - Validate that the code covers the plan and spec
-  - Validate there is one Playwright test per acceptance criterion
+  - Validate every acceptance criterion is covered by at least one automated test — a Playwright
+    test where [E2E](#e2e-tests-are-optional) is enabled and the criterion has a UI surface, a unit
+    or integration test otherwise
   - Code review
 
 Output
 - Code changes
 - Unit tests
-- Playwright tests
+- Playwright tests, where E2E is enabled
 
 ### 4 - Test
 
 #### T1. CI pipeline
 
 Input:
-- Code, unit tests and Playwright tests on `main`
+- Code, unit tests and — where [E2E](#e2e-tests-are-optional) is enabled — Playwright tests, on
+  `main`
 - CI trigger
 
 Execute:
@@ -384,7 +394,11 @@ Execute:
       - Project status: Test
     - Deploy frontend and backend
   - Stage test
-    - Run playwright smoke tests
+    - Run the tests that trace to the acceptance criteria. Where [E2E](#e2e-tests-are-optional) is
+      enabled, that is the Playwright smoke suite against the deployed environment. Where
+      `e2e: false`, nothing runs against the environment and the stage carries forward the unit
+      and integration results from the build stage — same triage, same labels, so the rest of the
+      chain is identical
     - Save test results as pipeline artifacts
     - AI-Fabric
       - Triage failures (see the assertion rule below)
@@ -402,11 +416,12 @@ Execute:
 
 Guardrails:
 - Tests pass and cover the acceptance criteria
-- **The assertion rule.** A Playwright failure is either a bad locator or timing assumption, or a
-  genuine defect. The AI-Fabric may repair locators, waits and fixtures. It may **not** weaken,
-  relax, skip or delete an assertion that traces to an acceptance criterion — that requires a human
-  and a spec change. Without this rule the agent resolves real bugs by loosening assertions, and the
-  suite silently stops testing anything.
+- **The assertion rule.** A failure is either a bad locator or timing assumption, or a genuine
+  defect. The AI-Fabric may repair locators, waits and fixtures. It may **not** weaken, relax, skip
+  or delete an assertion that traces to an acceptance criterion — that requires a human and a spec
+  change. Without this rule the agent resolves real bugs by loosening assertions, and the suite
+  silently stops testing anything. The rule is about what an agent may do to a test that proves a
+  criterion, so it holds whatever runner executes it — Playwright or otherwise.
 
 Output:
 - App running in UAT
@@ -422,7 +437,7 @@ Input:
 Execute:
 - A human manually/exploratory tests the app running in UAT against `spec.md` acceptance criteria
 - A human creates new Bug issues as sub-issues for any failures found
-- **Anything found here that the Playwright suite missed is by definition a coverage gap** — the Bug
+- **Anything found here that the automated suite missed is by definition a coverage gap** — the Bug
   sub-issue carries a "add the regression test" requirement, so the suite grows from real escapes
 - A human approves the issue when manual tests pass
 
@@ -435,6 +450,10 @@ Output:
 The issue is **not** closed here. It closes at release, in the not-yet-specified Deploy stage.
 
 #### T3. Nightly regression pipeline
+
+**Runs only where [E2E](#e2e-tests-are-optional) is enabled.** A repo with `e2e: false` has no
+suite that needs a deployed environment — its unit and integration tests already run on every
+push, in T1 — so there is nothing for a nightly to regress against.
 
 Input:
 - Scheduled nightly trigger (cron)
@@ -467,7 +486,7 @@ Output:
 - New Bug issues for failures not already tracked
 - Optionally, a PR with locator, wait or fixture repairs
 
-#### T4. E2E coverage audit
+#### T4. Coverage audit
 
 Per-issue coverage is already gated in B4 and T1, and both are scoped to a single issue. This play
 catches what neither can see: drift across the suite as a whole.
@@ -475,7 +494,8 @@ catches what neither can see: drift across the suite as a whole.
 Input:
 - Scheduled weekly trigger (cron)
 - All `status: active` specs
-- The full Playwright suite
+- The full suite of tests that trace to acceptance criteria — the Playwright suite where
+  [E2E](#e2e-tests-are-optional) is enabled, the unit and integration tests otherwise
 
 Execute:
 - AI-Fabric GitHub Action
@@ -591,6 +611,25 @@ status: active   # active | superseded
 **Only `status: active` specs are loaded as agent context.** That is what supersession buys, and the
 reason a frozen spec is replaced rather than edited.
 
+### E2E tests are optional
+
+Not every repo has a UI. A backend service, a library or a CLI has acceptance criteria worth proving
+and nothing for Playwright to drive, so E2E is a repo capability — each app repo declares it once,
+as an input its caller workflows pass down:
+
+```yaml
+uses: <org>/ai-fabric/.github/workflows/b3-code.yml@v1
+with:
+  e2e: true    # default: false
+```
+
+It is **declared, not detected.** Sniffing for a `playwright.config.*` makes "this repo has no UI"
+indistinguishable from "nobody has written the first test yet", and a config file lost in a refactor
+would silently retire a whole gate rather than fail loudly.
+
+The flag chooses the runner, never the gate — making coverage itself conditional would turn "we have
+no UI" into "we test nothing".
+
 ### Triggers and idempotency
 
 - **Trigger on the merge of a PR carrying a specific label**, never a path filter — a path filter
@@ -615,7 +654,7 @@ because a workflow's `on:` block must be declared in the repo where the event ha
 | --- | --- | --- |
 | `fabric-issues.yml` | `issues` (opened, edited, labeled, closed) | P1 classify, D1 spec, unblock |
 | `fabric-pr.yml` | `pull_request` (opened, synchronize, closed) | D2/B2/B4 reviews, B1 plan, B3 code |
-| `fabric-pipeline.yml` | `push` to `main`, `schedule` | T1 CI, T3 nightly regression, T4 coverage audit |
+| `fabric-pipeline.yml` | `push` to `main`, `schedule` | T1 CI, T3 nightly regression (E2E repos only), T4 coverage audit |
 | `fabric-evals.yml` | `schedule` (weekly), `workflow_dispatch` | T5 AI-Fabric evals |
 
 Each caller job is a guard plus `uses: <org>/ai-fabric/.github/workflows/<play>.yml@v1`, **one job
