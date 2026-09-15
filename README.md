@@ -1,12 +1,17 @@
 # AI-SDLC
 
-This repository is a playbook for AI-native SDLC that uses GitHub issues, projects, actions, and PRs to automate the development process. It is based on Anthropic's [AI-Native SDLC playbook](https://claude.com/blog/the-ai-native-sdlc-playbook).
+**This repository is the AI-Fabric.** It holds the reusable workflows, composite actions and scripts
+that run the AI automation for every app repo in the org. An app repo carries only thin caller
+workflows that delegate here — see [Workflow layout](#workflow-layout). Nothing in this repo is
+repo-specific.
 
-This repo is also the **AI-Fabric itself**: it holds the reusable workflows, composite
-actions and scripts that app repos call. Each app repo carries only thin caller
-workflows that delegate here — see [Workflow layout](#workflow-layout).
+The rest of this document is the playbook the fabric implements: an AI-native SDLC that uses GitHub
+issues, projects, actions, and PRs to automate the development process, based on Anthropic's
+[AI-Native SDLC playbook](https://claude.com/blog/the-ai-native-sdlc-playbook). A workflow here that
+contradicts a play is a bug in the workflow.
 
-AI should automate as much as possible. Humans are in the loop to orchestrate, oversee, and have the final word by approving the work.
+AI should automate as much as possible. Humans are in the loop to orchestrate, oversee, and have the
+final word by approving the work.
 
 ## Glossary
 
