@@ -498,6 +498,45 @@ Output:
 - Coverage audit report as a pipeline artifact
 - New Bug and Task sub-issues for gaps, silent tests and orphans
 
+#### T5. AI-Fabric evals
+
+The AI-Fabric is software, and it is the only software in this process with no SDLC of its own.
+Without this play, a prompt edit that quietly degrades spec quality is invisible until it reaches a
+human reviewer, several plays downstream.
+
+Input:
+- Scheduled weekly trigger (cron)
+- The current fabric configuration — prompts, skills, `CLAUDE.md`, workflow definitions
+- The eval set: real historical issues **from this repo**, with their merged `spec.md`, `plan.md`
+  and diffs as the recorded output
+- The previous passing run's scores, as the baseline
+
+Execute:
+- AI-Fabric evals workflow
+  - Replay every eval case against the current configuration
+  - Score each generated artifact against the recorded one — template conformance, acceptance
+    criteria coverage, and a rubric judged by an agent
+  - Compare against the baseline, and save scores and generated artifacts as pipeline artifacts
+  - Create a Bug issue in `<org>/ai-fabric` for each case that regressed past its threshold, naming
+    the case, the previous and current scores, and every configuration commit since the last run
+  - Fail the stage on regression
+
+Guardrails:
+- **The eval set is append-only.** A case is added whenever a play escapes to a human, and is never
+  deleted or edited to accommodate a regression. Retiring one takes a human and a PR that says why.
+- **The fabric never repairs itself in this run.** A regression opens a Bug that travels the normal
+  chain like any other defect.
+- **The baseline advances only on a passing run**, so a regression cannot quietly become the new
+  normal by surviving a week.
+- Scores are kept per run, so a slow drift over several weeks is as visible as a week-over-week drop.
+- **Each app repo evaluates the shared fabric against its own history.** The configuration under
+  test is the same everywhere, but a prompt edit can degrade one domain and not another, and only
+  the repo that owns those issues will see it.
+
+Output:
+- Eval scores and generated artifacts as pipeline artifacts
+- New Bug issues in `<org>/ai-fabric` for regressions
+
 ### 5 - Deploy
 
 Not yet specified. Known scope: release, changelog and release notes, documentation and manual
@@ -560,14 +599,15 @@ The AI-Fabric is **centralized in an org-level repo** and consumed by every app 
 `<org>/ai-fabric` holds all the real logic — one reusable workflow per play (`on: workflow_call`)
 plus the shared `fabric-setup` composite action. Nothing in it is repo-specific.
 
-Each app repo carries **three thin caller workflows**, grouped by trigger rather than by play,
+Each app repo carries **four thin caller workflows**, grouped by trigger rather than by play,
 because a workflow's `on:` block must be declared in the repo where the event happens:
 
 | Caller workflow | Trigger | Fans out to |
 | --- | --- | --- |
 | `fabric-issues.yml` | `issues` (opened, edited, labeled, closed) | P1 classify, D1 spec, unblock |
-| `fabric-pr.yml` | `pull_request` (opened, synchronize, closed) | D2/B2/B4 reviews, B1 plan, B3 code, evals |
+| `fabric-pr.yml` | `pull_request` (opened, synchronize, closed) | D2/B2/B4 reviews, B1 plan, B3 code |
 | `fabric-pipeline.yml` | `push` to `main`, `schedule` | T1 CI, T3 nightly regression, T4 coverage audit |
+| `fabric-evals.yml` | `schedule` (weekly), `workflow_dispatch` | T5 AI-Fabric evals |
 
 Each caller job is a guard plus `uses: <org>/ai-fabric/.github/workflows/<play>.yml@v1`, **one job
 per play**, so `permissions:`, `concurrency:` and check names stay job-level and each play keeps its
@@ -619,13 +659,3 @@ Blocked on human work:
   gets `ai-fabric:blocked-on-design`. The parent keeps status `Design`, where the work actually is.
   B1 does not trigger while that label is present. Closing the Task fires a workflow that clears the
   label and resumes the chain. This is a real dependency, not just a linked issue.
-
-### Evals for the AI-Fabric
-
-The AI-Fabric is software, and today it is the only software in this process with no SDLC of its
-own. A regression suite runs as a GitHub Action whenever the fabric's own configuration changes —
-prompts, skills, `CLAUDE.md`, workflow definitions — using real historical issues as test cases, and
-gates the change.
-
-Without this, a prompt edit that quietly degrades spec quality is invisible until it reaches a human
-reviewer, several plays downstream.
